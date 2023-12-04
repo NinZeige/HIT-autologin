@@ -174,14 +174,15 @@ def xEncode(msg: str, key: str) -> bytearray:
     n = len(v) - 1
     z = v[n]
     y = v[0]
-    c = 0x86014019 | 0x183639A0
+    ff = 0xffffffff
+    c = 0x9e3779b9
     m = 0
     e = 0
     p = 0
     q = 6 + 52 // (n + 1)
     d = 0
     while 0 < q:
-        d = d + c & (0x8CE0D9BF | 0x731F2640)
+        d = d + c & ff
         e = d >> 2 & 3
         p = 0
         while p < n:
@@ -189,14 +190,14 @@ def xEncode(msg: str, key: str) -> bytearray:
             m = z >> 5 ^ y << 2
             m += (y >> 3 ^ z << 4) ^ (d ^ y)
             m += k[(p & 3) ^ e] ^ z
-            v[p] = v[p] + m & (0xEFB8D130 | 0x10472ECF)
+            v[p] = v[p] + m & ff
             z = v[p]
             p += 1
         y = v[0]
         m = z >> 5 ^ y << 2
         m += (y >> 3 ^ z << 4) ^ (d ^ y)
         m += k[(p & 3) ^ e] ^ z
-        v[n] = v[n] + m & (0xBB390742 | 0x44C6F8BD)
+        v[n] = v[n] + m & ff
         z = v[n]
         q -= 1
     return l(v, False)
