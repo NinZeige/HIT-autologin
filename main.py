@@ -127,38 +127,24 @@ def calc_info(msg: dict, token: str):
     return f"{{SRBX1}}{encoded_string}"
 
 
-# s and l function is inter reversible
-def s(msg: str, flag: bool) -> str:
-    origin_len = len(msg)
-    msg = bytearray(msg, "utf-8")
-    # padding to 4 bytes
-    while len(msg) % 4 != 0:
-        msg.append(0)
-    result = [0] * ((len(msg) >> 2))
-    for i in range(0, origin_len, 4):
-        result[i >> 2] = msg[i] | msg[i + 1] << 8 | msg[i + 2] << 16 | msg[i + 3] << 24
+def byte2arr(msg: str, flag: bool) -> list[int]:
+    """Corresponds to `s()` in source code"""
+    mb = bytearray(msg, "utf-8")
+    origin_len = len(mb)
+    result = [int.from_bytes(mb[i : i + 4], "little") for i in range(0, len(mb), 4)]
     if flag:
         result.append(origin_len)
     return result
 
 
-def l(a: list[int], b: bool) -> str:
-    result = []
-    c = (len(a) - 1) * 4
-    if b:
-        m = a[-1]
-        if m > c or m < c - 3:
-            return None
-        c = m
-
+def arr2byte(a: list[int], b: bool) -> bytearray:
+    """Corresponds to `l()` in source code"""
+    result = bytearray()
+    origin_len = a[-1] if b else len(a) * 4
+    a = a[:-1] if b else a
     for i in range(len(a)):
-        result.append(a[i] & 0xFF)
-        result.append(a[i] >> 8 & 0xFF)
-        result.append(a[i] >> 16 & 0xFF)
-        result.append(a[i] >> 24 & 0xFF)
-    if b:
-        result = result[0:c]
-    return [chr(element) for element in result]
+        result.extend(a[i].to_bytes(min(4, origin_len - i * 4), "little"))
+    return result
 
 
 def xEncode(msg: str, key: str) -> bytearray:
@@ -167,15 +153,15 @@ def xEncode(msg: str, key: str) -> bytearray:
     """
     if not len(msg):
         return ""
-    v = s(msg, True)
-    k = s(key, False)
+    v = byte2arr(msg, True)
+    k = byte2arr(key, False)
     if len(k) < 4:
         k = k + [0] * (4 - len(k))
     n = len(v) - 1
     z = v[n]
     y = v[0]
-    ff = 0xffffffff
-    c = 0x9e3779b9
+    ff = 0xFFFFFFFF
+    c = 0x9E3779B9
     m = 0
     e = 0
     p = 0
@@ -200,7 +186,7 @@ def xEncode(msg: str, key: str) -> bytearray:
         v[n] = v[n] + m & ff
         z = v[n]
         q -= 1
-    return l(v, False)
+    return arr2byte(v, False)
 
 
 def meet_challenge(context: dict[str, str]) -> str:
@@ -236,21 +222,18 @@ def login(url: str):
     info(response.text)
 
 
-def jq_b64(msg: str):
+def jq_b64(msg: bytearray):
     """
-    the algorithm of jQuery failed to consider unicode
+    The algorithm of jQuery failed to consider unicode
     leading to a wrong result, so we have to calculate this
     bad result
     """
     stupid_alphabet = "LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA"
     result = ""
-    x = []
-    for element in msg:
-        x.append(ord(element))
-    for i in range(0, len(x), 3):
-        a = x[i]
-        b = x[i + 1] if i + 1 < len(x) else 0
-        c = x[i + 2] if i + 2 < len(x) else 0
+    for i in range(0, len(msg), 3):
+        a = msg[i]
+        b = msg[i + 1] if i + 1 < len(msg) else 0
+        c = msg[i + 2] if i + 2 < len(msg) else 0
         result += stupid_alphabet[(a >> 2) & 0x3F]
         result += stupid_alphabet[(((a & 3) << 4) | (b >> 4)) & 0x3F]
         result += stupid_alphabet[(((b & 15) << 2) | (c >> 6)) & 0x3F]
