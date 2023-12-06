@@ -266,7 +266,7 @@ def jq_b64(msg: str):
 if __name__ == "__main__":
     username = "输入学号加创新学分"
     password = "won't tell you :)"
-    # decomment to trace
+    # uncomment to trace
     # basicConfig(level=INFO)
     ctx = get_challenge(username, password)
     url = meet_challenge(ctx)
