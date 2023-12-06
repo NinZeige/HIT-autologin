@@ -16,6 +16,7 @@ import urllib.parse
 #   2. meet the challenge
 #   3. send the login request
 
+
 def get_challenge(username: str, password: str) -> dict[str, str]:
     timestamp = int(time.time() * 1000)
     mystery_number = "112406802133408291239"
@@ -107,7 +108,7 @@ def calc_chcksum(context: dict[str, str]) -> None:
     info(f"Info: {_info}")
 
     # Compose and calculate the final checksum
-    contents = ['', username, passwd_md5, ac_id, client_ip, magic_n, magic_type, _info]
+    contents = ["", username, passwd_md5, ac_id, client_ip, magic_n, magic_type, _info]
     chkstr = token.join(contents)
     checksum = hashlib.sha1(chkstr.encode()).hexdigest()
     info(f"Checksum: {checksum}")
