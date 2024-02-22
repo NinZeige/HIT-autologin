@@ -9,6 +9,36 @@ import re
 import hmac
 import hashlib
 import urllib.parse
+import tomllib
+
+
+class User:
+    def __init__(self, name, password):
+        self._name = name
+        self._password = password
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def password(self):
+        return self._password
+
+
+class College:
+    def __init__(self, host, alpha, mystery_number):
+        self.host = host
+        self.alpha = alpha
+        self.mystery_number = mystery_number
+
+
+def read_config(path: str = './config.toml') -> tuple[User, College]:
+    with open(path, 'rb') as f:
+        config = tomllib.load(f)
+        user = User(**config['authentication'])
+        coll = College(**config['general'])
+        return user, coll
 
 
 # steps:
@@ -16,26 +46,28 @@ import urllib.parse
 #   2. meet the challenge
 #   3. send the login request
 
-def get_challenge(username: str, password: str) -> dict[str, str]:
+
+def get_challenge(name: str, pswd: str, college: College) -> dict[str, str]:
     timestamp = int(time.time() * 1000)
-    mystery_number = "112406802133408291239"
+    mystery = college.mystery_number
     url = (
-        f"https://webportal.hit.edu.cn/cgi-bin/get_challenge?"
-        f"callback=jQuery{mystery_number}_{timestamp}&username={username}&_={timestamp}"
+        f"{college.host}/cgi-bin/get_challenge?"
+        f"callback=jQuery{mystery}_{timestamp}&username={name}&_={timestamp}"
     )
 
     try:
-        response = requests.get(url)
-        info(response.text)
+        info(f'Req url: {url}')
+        resp = requests.get(url)
+        info(f'Res: {resp.text}')
     except requests.RequestException as e:
         error(f"HTTP request failed: {e}")
-        return None
+        exit(1)
 
     response_format = re.compile(r"(jQuery\d+_\d+)\((.*)\)")
-    match = response_format.match(response.text)
+    match = response_format.match(resp.text)
     if not match:
         error("Regex match failed")
-        return None
+        exit(1)
 
     prefix = match.group(1)
     response_content = match.group(2)
@@ -45,15 +77,15 @@ def get_challenge(username: str, password: str) -> dict[str, str]:
         response_json = json.loads(response_content)
     except json.decoder.JSONDecodeError:
         error("JSON decode error: bad format")
-        return None
+        exit(1)
 
     if not isinstance(response_json, dict):
         error("JSON decode error: not a dict")
-        return None
+        exit(1)
 
     # Add more info to response
-    response_json["username"] = username
-    response_json["password"] = password
+    response_json["username"] = name
+    response_json["password"] = pswd
     response_json["prefix"] = prefix
     response_json["timestamp"] = timestamp
 
@@ -73,7 +105,7 @@ def calculate_hmac_md5(key, message):
     return hmac_md5.hexdigest()
 
 
-def calc_chcksum(context: dict[str, str]) -> None:
+def calc_chcksum(context: dict[str, str], alphabet) -> None:
     """
     Calculate the checksum for authentication.
 
@@ -83,26 +115,27 @@ def calc_chcksum(context: dict[str, str]) -> None:
     # Extract necessary information from context
     token = context["challenge"]
     username = context["username"]
-    password = context["password"]
+    passwd_plain = context["password"]
     client_ip = context["client_ip"]
     ac_id = "1"
     magic_n = "200"
     magic_type = "1"
 
     # Calculate hashed password
-    passwd_md5 = calculate_hmac_md5(token, password)
+    passwd_md5 = calculate_hmac_md5(token, passwd_plain)
     info(f"Password MD5: {passwd_md5}")
 
     # Calculate additional info
     _info = calc_info(
         {
             "username": username,
-            "password": password,
+            "password": passwd_plain,
             "ip": client_ip,
             "acid": ac_id,
             "enc_ver": "srun_bx1",
         },
         token,
+        alphabet,
     )
     info(f"Info: {_info}")
 
@@ -118,12 +151,12 @@ def calc_chcksum(context: dict[str, str]) -> None:
     context["password"] = f"{{MD5}}{passwd_md5}"
 
 
-def calc_info(msg: dict, token: str):
+def calc_info(msg: dict, token: str, alpha: str = ''):
     str_msg = json.dumps(msg, separators=(",", ":"))
     info(f"str_msg: {str_msg}")
     raw_str = xEncode(str_msg, token)
     info(f"raw_str: {raw_str}")
-    encoded_string = jq_b64(raw_str)
+    encoded_string = jq_b64(raw_str, alpha)
     return f"{{SRBX1}}{encoded_string}"
 
 
@@ -174,8 +207,8 @@ def xEncode(msg: str, key: str) -> bytearray:
     n = len(v) - 1
     z = v[n]
     y = v[0]
-    ff = 0xffffffff
-    c = 0x9e3779b9
+    ff = 0xFFFFFFFF
+    c = 0x9E3779B9
     m = 0
     e = 0
     p = 0
@@ -203,8 +236,8 @@ def xEncode(msg: str, key: str) -> bytearray:
     return l(v, False)
 
 
-def meet_challenge(context: dict[str, str]) -> str:
-    calc_chcksum(context)
+def meet_challenge(context: dict[str, str], coll: College) -> str:
+    calc_chcksum(context, coll.alpha)
 
     # Prepare URL parameters
     params = {
@@ -225,7 +258,7 @@ def meet_challenge(context: dict[str, str]) -> str:
     }
 
     # Construct URL
-    base_url = "https://webportal.hit.edu.cn/cgi-bin/srun_portal"
+    base_url = f"{coll.host}/cgi-bin/srun_portal"
     url = f"{base_url}?{urllib.parse.urlencode(params)}"
     info(f"final url: {url}")
     return url
@@ -236,13 +269,17 @@ def login(url: str):
     info(response.text)
 
 
-def jq_b64(msg: str):
+def jq_b64(msg: str, alpha: str = ''):
     """
     the algorithm of jQuery failed to consider unicode
     leading to a wrong result, so we have to calculate this
     bad result
     """
-    stupid_alphabet = "LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA"
+    stupid_alphabet = (
+        alpha
+        if alpha
+        else "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    )
     result = ""
     x = []
     for element in msg:
@@ -264,10 +301,9 @@ def jq_b64(msg: str):
 
 
 if __name__ == "__main__":
-    username = "输入学号加创新学分"
-    password = "won't tell you :)"
     # decomment to trace
     # basicConfig(level=INFO)
-    ctx = get_challenge(username, password)
-    url = meet_challenge(ctx)
+    user, coll = read_config()
+    ctx = get_challenge(user.name, user.password, coll)
+    url = meet_challenge(ctx, coll)
     login(url)

@@ -1,0 +1,10 @@
+# 通用配置
+[general]
+host = "https://webportal.hit.edu.cn"
+alpha = "LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA"
+mystery_number = '112406802133408291239'
+
+# 用户认证
+[authentication]
+name = '19910101'
+password = 'demo password'
