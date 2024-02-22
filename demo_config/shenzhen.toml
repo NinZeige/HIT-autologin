@@ -1,0 +1,10 @@
+# 通用配置
+[general]
+host = "http://10.248.98.2"
+alpha = "LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA"
+mystery_number = '1124024957595471016414'
+
+# 用户认证
+[authentication]
+name = '19910101'
+password = 'demo password'
