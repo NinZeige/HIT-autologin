@@ -10,18 +10,9 @@
 
 ## 如何使用
 
-修改`username`, `password`, 然后运行
-
-```py
-if __name__ == "__main__":
-    username = "输入学号加创新学分"
-    password = "won't tell you :)"
-    # decomment to trace
-    # basicConfig(level=INFO)
-    ctx = get_challenge(username, password)
-    url = meet_challenge(ctx)
-    login(url)
-```
+- 在可执行文件路径下创建`config.toml`文件, 将`name`, `password`填入
+- 深圳校区使用`demo_config/shenzhen.toml`作为模板, 校本部使用`demo_config/harbin.toml`作为模板
+- 运行`main.py`即可
 
 如果对登录结果不自信, 可解注释`basicConfig(level=INFO)`查看网络请求的结果
 
